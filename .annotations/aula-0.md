@@ -24,3 +24,9 @@ Incoming requests to a server should create a Context, and outgoing calls to ser
   encerra servidor com até 5 segundos
         ↓
   aguarda a finalização definitiva
+
+---
+### Go Routine
+Pelo que eu entendi, Go Routine é basicamente uma função que roda em uma thread separada e consegue rodar coisas em paralelo com a funcao principal. voce define uma funcao routine colocando a palavra reservada `Go` antes da `func()`. 
+
+Acho que se fosse pra fazer uma analogaia a javascript. go routine seria o event loop, porem o eventloop eh a ordem de execucao e chamadas assincronas do motor node.js, o node js eh singe thread.

@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -17,7 +18,25 @@ func TestHealthHandlerGet(t *testing.T) {
 	}
 
 	if rr.Header().Get("Content-Type") != "application/json" {
-		t.Fatalf("Content-Type expected to application/json, received %s", rr.Header().Get("Content-Type"))
+		t.Fatalf(
+			"Content-Type expected to application/json, received %s",
+			rr.Header().Get("Content-Type"))
+	}
+
+	var got HealthResponse
+
+	if err := json.NewDecoder(rr.Body).Decode(&got); err != nil {
+		t.Fatalf("error at decode JSON: %v", err)
+	}
+
+	want := HealthResponse{
+		Status:  "ok",
+		Redis:   "not_checked",
+		Version: "dev",
+	}
+
+	if got != want {
+		t.Errorf("expected response: %+v, received: %+v", want, got)
 	}
 }
 
