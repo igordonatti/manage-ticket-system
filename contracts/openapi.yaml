@@ -1,0 +1,320 @@
+openapi: 3.1.0
+info:
+  title: Ticketing Space API
+  version: 0.1.0
+  description: Contrato de aprendizagem para a API Go e o estado operacional Redis.
+  license:
+    name: Uso educacional
+    identifier: LicenseRef-Educational
+servers:
+  - url: http://localhost:8080
+security: []
+tags:
+  - name: Operations
+    description: Saúde e diagnóstico do processo.
+  - name: Events
+    description: Catálogo e inventário operacional de eventos.
+  - name: Reservations
+    description: Ciclo de vida das reservas temporárias.
+paths:
+  /health:
+    get:
+      tags: [Operations]
+      operationId: getHealth
+      summary: Consultar a saúde do processo
+      responses:
+        "200":
+          description: Processo disponível.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+  /events:
+    get:
+      tags: [Events]
+      operationId: listEvents
+      summary: Listar eventos
+      responses:
+        "200":
+          description: Eventos conhecidos pelo espaço.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Event"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+    post:
+      tags: [Events]
+      operationId: createEvent
+      summary: Criar um evento
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEvent"
+      responses:
+        "201":
+          description: Evento criado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /events/{eventId}/availability:
+    parameters:
+      - $ref: "#/components/parameters/EventId"
+    get:
+      tags: [Events]
+      operationId: getAvailability
+      summary: Consultar a disponibilidade de um evento
+      responses:
+        "200":
+          description: Estado operacional atual do inventário.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Availability"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /events/{eventId}/reservations:
+    parameters:
+      - $ref: "#/components/parameters/EventId"
+    post:
+      tags: [Reservations]
+      operationId: createReservation
+      summary: Criar uma reserva temporária
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quantity]
+              properties:
+                quantity:
+                  type: integer
+                  minimum: 1
+                  maximum: 10
+      responses:
+        "201":
+          description: Reserva criada.
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reservation"
+        "200":
+          description: Repetição idempotente; a reserva já existente foi devolvida.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reservation"
+        "409":
+          description: Estoque insuficiente.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /reservations/{reservationId}:
+    parameters:
+      - name: reservationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Reservations]
+      operationId: getReservation
+      summary: Consultar uma reserva
+      responses:
+        "200":
+          description: Reserva atual.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reservation"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Reservations]
+      operationId: cancelReservation
+      summary: Cancelar uma reserva
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "204":
+          description: Reserva cancelada ou já cancelada.
+        "404":
+          $ref: "#/components/responses/NotFound"
+components:
+  parameters:
+    EventId:
+      name: eventId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 128
+  responses:
+    NotFound:
+      description: Recurso não encontrado.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    ValidationError:
+      description: Entrada inválida.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unavailable:
+      description: Estado operacional temporariamente indisponível.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Health:
+      type: object
+      required: [status, redis, version]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        redis:
+          type: string
+          enum: [ok, unavailable, not_checked]
+        version:
+          type: string
+    Event:
+      type: object
+      required: [id, name, venue, starts_at, sales_start_at, capacity, price_cents, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        venue:
+          type: string
+        starts_at:
+          type: string
+          format: date-time
+        sales_start_at:
+          type: string
+          format: date-time
+        capacity:
+          type: integer
+          minimum: 1
+        price_cents:
+          type: integer
+          minimum: 0
+        status:
+          type: string
+          enum: [draft, on_sale, sold_out, closed]
+    CreateEvent:
+      type: object
+      required: [name, venue, starts_at, sales_start_at, capacity, price_cents]
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 120
+        venue:
+          type: string
+          minLength: 3
+          maxLength: 120
+        starts_at:
+          type: string
+          format: date-time
+        sales_start_at:
+          type: string
+          format: date-time
+        capacity:
+          type: integer
+          minimum: 1
+        price_cents:
+          type: integer
+          minimum: 0
+    Availability:
+      type: object
+      required: [event_id, capacity, available, reserved, sold, version]
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        capacity:
+          type: integer
+        available:
+          type: integer
+        reserved:
+          type: integer
+        sold:
+          type: integer
+        version:
+          type: integer
+          format: int64
+    Reservation:
+      type: object
+      required: [id, event_id, quantity, status, expires_at, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        event_id:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+        status:
+          type: string
+          enum: [pending, confirmed, cancelled, expired]
+        expires_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          examples: [INSUFFICIENT_INVENTORY]
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
