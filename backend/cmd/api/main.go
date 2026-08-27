@@ -11,13 +11,32 @@ import (
 	"time"
 
 	"github.com/igordonatti/sistema-gestao-ingressos/backend/internal/httpapi"
+	"github.com/igordonatti/sistema-gestao-ingressos/backend/internal/redisstore"
 )
 
 func main() {
+	redisAddr := os.Getenv("REDIS_ADDR")
+	if redisAddr == "" {
+		redisAddr = "localhost:6379"
+	}
+
+	redisClient := redisstore.New(redisAddr)
+
+	defer func() {
+		if err := redisClient.Close(); err != nil {
+			log.Printf("error closing Redis client redis: %v", err)
+		}
+	}()
+
+	healthHandler := httpapi.NewHealthHandler(
+		redisClient,
+		500*time.Millisecond,
+	)
+
 	// isso aqui cria um "multiplexer" (http router)
 	mux := http.NewServeMux()
 	// registry the health route
-	mux.HandleFunc("/health", httpapi.HealthHandler)
+	mux.HandleFunc("/health", healthHandler)
 
 	// servidor na porta 8080
 	// timeouts evitam que o servidor fique preso por reqs lentas ou maliciosas
@@ -53,7 +72,7 @@ func main() {
 		log.Printf("finishing the server after signal %s...", sig)
 	case err := <-serverErr:
 		if err != nil {
-			log.Fatalf("error to run the server: %v", err)
+			log.Printf("error runing the server: %v", err)
 		}
 		return
 	}

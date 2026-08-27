@@ -205,16 +205,26 @@ Eu escreverei os testes do health handler usando um checker falso depois que voc
 4. Por que o cliente Redis deve ser compartilhado pelo processo em vez de criado por requisição?
 5. Qual é a diferença entre `DialTimeout`, `ReadTimeout` e o deadline do contexto?
 
-## Checkpoint 2C — prévia do repositório
+## Checkpoint 2C — repositório de eventos e inventário
 
-Depois da revisão do checkpoint 2B, criaremos:
+Neste checkpoint separaremos o contrato de persistência, pertencente à aplicação, de sua implementação com Redis. Criaremos:
 
 ```text
 internal/event/repository.go
 internal/redisstore/event_repository.go
+internal/redisstore/event_repository_test.go
 ```
 
-Um evento será armazenado num hash. Um sorted set funcionará como índice ordenado pela data do evento:
+O trabalho será incremental:
+
+1. declarar no domínio o contrato mínimo de criação e leitura;
+2. definir a tradução entre `event.Event` e campos textuais do Redis;
+3. criar o evento e seu inventário sem reinicializar disponibilidade existente;
+4. reconstruir um evento a partir do hash;
+5. indexar eventos pela data de início;
+6. comprovar com Redis real que os dados sobrevivem à troca do cliente da aplicação.
+
+Um evento será armazenado num hash. O inventário ficará em outro hash, pois no estilo baseado em espaço ele é estado operacional acessado e alterado com frequência. Um sorted set funcionará como índice ordenado pela data do evento:
 
 ```text
 event:{event-001}       HASH
@@ -222,7 +232,20 @@ inventory:{event-001}   HASH
 events:by_start         SORTED SET
 ```
 
-As chaves com `{event-001}` já preparam afinidade para Redis Cluster. A consistência entre o registro do evento, inventário e índice será discutida antes de escrevermos qualquer operação com múltiplas chaves.
+Os campos de tempo serão armazenados em formato textual explícito e convertidos de volta para `time.Time`. Capacidade e preço também voltarão como texto e precisarão de conversão segura antes da reconstrução do domínio.
+
+As chaves com `{event-001}` preparam afinidade entre evento e inventário para Redis Cluster: o conteúdo entre chaves é a hash tag usada na escolha do slot. O índice global `events:by_start`, porém, não pertence ao mesmo slot. Isso significa que uma transação envolvendo as três chaves funciona no Redis único deste laboratório, mas exigirá outra estratégia quando distribuirmos os dados entre vários nós. Não chamaremos essa implementação de pronta para Cluster antes de resolver esse limite.
+
+### Critérios de aceite do checkpoint 2C
+
+- o pacote `event` não importa `go-redis`;
+- o adaptador Redis implementa implicitamente o contrato do domínio;
+- criar um evento produz o hash do evento, o inventário inicial e a entrada no índice;
+- uma segunda criação com o mesmo ID não reinicializa o inventário;
+- buscar um ID inexistente retorna um erro de domínio conhecido;
+- dados inválidos ou corrompidos no Redis não geram um `Event` inválido;
+- fechar um cliente, criar outro e buscar o mesmo evento preserva os dados;
+- os testes de integração limpam somente as chaves que eles próprios criaram.
 
 ## Referências oficiais
 
