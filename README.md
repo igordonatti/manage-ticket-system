@@ -42,6 +42,7 @@ docker compose up --build -d frontend
 - [Aula 0 — primeiro servidor Go](.aulas/AULA-00.md)
 - [Aula 1 — domínio de eventos](.aulas/AULA-01.md)
 - [Aula 2 — Redis como estado operacional](.aulas/AULA-02.md)
+- [Aula 3 — reservas e idempotência](.aulas/AULA-03.md)
 - [Contrato OpenAPI](contracts/openapi.yaml)
 - [Schema de persistência](database/init/001_schema.sql)
 - [Teste de concorrência](tests/load/reservas.js)
