@@ -39,8 +39,9 @@ docker compose up --build -d frontend
 ## Material de estudo
 
 - [Plano de estudos](docs/plano-de-estudos.md)
-- [Primeira aula](backend/README.md)
-- [Aula 1 — domínio de eventos](backend/AULA-01.md)
+- [Aula 0 — primeiro servidor Go](.aulas/AULA-00.md)
+- [Aula 1 — domínio de eventos](.aulas/AULA-01.md)
+- [Aula 2 — Redis como estado operacional](.aulas/AULA-02.md)
 - [Contrato OpenAPI](contracts/openapi.yaml)
 - [Schema de persistência](database/init/001_schema.sql)
 - [Teste de concorrência](tests/load/reservas.js)
